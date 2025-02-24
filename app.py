@@ -7,6 +7,12 @@ from moviepy.editor import VideoFileClip, AudioFileClip
 import requests
 from io import BytesIO
 import base64
+import imageio
+import imageio_ffmpeg as ffmpeg
+
+
+imageio.plugins.ffmpeg.download()
+
 
 st.set_page_config(
     page_title="✨ Mas-AI Multilingual Player ✨",
