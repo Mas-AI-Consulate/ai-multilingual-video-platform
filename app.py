@@ -1,52 +1,62 @@
 import streamlit as st
 from pytube import YouTube
-import openai
+import requests
 import os
 from moviepy.editor import *
+from gtts import gTTS
 from dotenv import load_dotenv
 
 load_dotenv()
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+st.set_page_config(page_title="Mas-AI Multilingual Platform 🌍", layout="centered")
 
-# Page setup
-st.set_page_config(page_title="Mas-AI Multilingual Video Platform", layout="centered")
-st.title("🚀 Mas-AI Multilingual Video Platform")
+st.title("🌍✨ Mas-AI Multilingual Video Platform ✨🌍")
 
-# User inputs
-video_url = st.text_input("🔗 Paste YouTube video URL here:")
-subtitle_lang = st.selectbox("📖 Choose Subtitle Language", ["English", "Spanish", "French", "German", "Chinese"])
-audio_lang = st.selectbox("🎧 Choose Audio Language", ["English", "Spanish", "French", "German", "Chinese"])
+video_url = st.text_input("🔗 Paste YouTube URL here:", placeholder="https://www.youtube.com/...")
 
-# Main functionality
-if st.button("✨ AI Transform & Play ✨"):
-    if video_url:
-        with st.spinner("Downloading and processing..."):
-            # Download video clearly
-            yt = YouTube(video_url)
-            video_stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
-            video_path = video_stream.download()
+languages = {
+    "🇺🇸 English": "en",
+    "🇪🇸 Spanish": "es",
+    "🇫🇷 French": "fr",
+    "🇩🇪 German": "de",
+    "🇨🇳 Chinese": "zh"
+}
 
-            st.success("Video downloaded successfully!")
+subtitle_choice = st.selectbox("📖 Subtitle Language", options=list(languages.keys()))
+audio_choice = st.selectbox("🎧 Audio Language", options=list(languages.keys()))
 
-            # AI-driven multilingual subtitle (example translation)
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{
-                    "role": "user",
-                    "content": f"Translate the following text into {subtitle_lang}: {yt.description}"
-                }]
-            )
-            translated_subtitle = response.choices[0].message.content
+def translate_text(text, lang_code):
+    api_key = os.getenv("OPENAI_API_KEY")
+    headers = {"Authorization": f"Bearer {api_key}"}
+    data = {
+        "model": "gpt-3.5-turbo",
+        "messages": [{"role": "user", "content": f"Translate this to {lang_code}: {text}"}]
+    }
+    response = requests.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers)
+    return response.json()['choices'][0]['message']['content']
 
-            # Display the AI-generated subtitle
-            st.markdown(f"### 🎬 Video Description ({subtitle_lang})")
-            st.write(translated_subtitle)
+def generate_audio(text, lang_code):
+    audio = gTTS(text=text, lang=lang_code)
+    audio.save("audio.mp3")
 
-            # Display video player clearly
-            st.video(video_path)
+if st.button("🚀 Generate & Play 🚀"):
+    with st.spinner("✨ Generating your multilingual video..."):
+        yt = YouTube(video_url)
+        stream = yt.streams.get_highest_resolution()
+        stream.download(filename="video.mp4")
 
-            # Clean up local video file clearly
-            os.remove(video_path)
-    else:
-        st.error("⚠️ Please enter a valid YouTube URL.")
+        translated_text = translate_text(yt.description, languages[subtitle_choice])
+
+        generate_audio(translated_text, languages[audio_choice])
+
+        video_clip = VideoFileClip("video.mp4")
+        audio_clip = AudioFileClip("audio.mp3").set_duration(video_clip.duration)
+        final_clip = video_clip.set_audio(audio_clip)
+        final_clip.write_videofile("final_video.mp4", codec="libx264", audio_codec="aac")
+
+        st.success("🎬 Here is your AI-enhanced video:")
+        st.video("final_video.mp4")
+
+        os.remove("video.mp4")
+        os.remove("audio.mp3")
+        os.remove("final_video.mp4")
