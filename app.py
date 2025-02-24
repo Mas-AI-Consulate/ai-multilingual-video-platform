@@ -5,6 +5,10 @@ from gtts import gTTS
 import tempfile
 import os
 import base64
+import os
+os.system("pip install moviepy imageio imageio_ffmpeg")
+
+
 
 # Set page config for a fancy UI
 st.set_page_config(
