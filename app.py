@@ -1,136 +1,123 @@
 import streamlit as st
 from pytube import YouTube
+from moviepy.editor import VideoFileClip
 from gtts import gTTS
 import tempfile
 import os
-from moviepy.editor import VideoFileClip, AudioFileClip
-import requests
-from io import BytesIO
 import base64
-import imageio
-import imageio_ffmpeg as ffmpeg
 
-
-imageio.plugins.ffmpeg.download()
-
-
+# Set page config for a fancy UI
 st.set_page_config(
-    page_title="✨ Mas-AI Multilingual Player ✨",
-    layout="wide",
-    page_icon="🚀"
+    page_title="Mas-AI Multilingual Player 🌍",
+    page_icon="🌟",
+    layout="wide"
 )
 
-# CSS for spectacular UI and sparkling cursor
+# 🎨 Custom CSS for fancy UI
 st.markdown("""
-<style>
-body {
-    background: linear-gradient(135deg, #1e3c72, #2a5298);
-    color: white;
-    overflow-x: hidden;
-}
-@keyframes sparkle {
-    0%, 100% { box-shadow: 0 0 8px white; }
-    50% { box-shadow: 0 0 18px #4ADEDE, 0 0 28px #797EF6, 0 0 38px #1AA7EC; }
-}
-.sparkle-cursor {
-    position: fixed;
-    pointer-events: none;
-    width: 15px;
-    height: 15px;
-    background: radial-gradient(circle, #4ADEDE, #797EF6, #1AA7EC);
-    border-radius: 50%;
-    animation: sparkle 1s infinite alternate;
-    z-index: 9999;
-}
-.flag {
-    height: 20px;
-    width: 30px;
-    border-radius: 4px;
-    margin-right: 10px;
-}
-h1 {
-    text-align: center;
-    color: #FFF;
-    font-family: 'Arial Black', sans-serif;
-    margin-bottom: 30px;
-}
-button {
-    background-color: #4ADEDE;
-    color: white;
-    border-radius: 12px;
-    padding: 10px 20px;
-    border: none;
-    cursor: pointer;
-}
-</style>
-<div class="sparkle-cursor" id="sparkle-cursor"></div>
-<script>
-document.addEventListener('mousemove', (e) => {
-    const cursor = document.getElementById('sparkle-cursor');
-    cursor.style.top = e.clientY + 'px';
-    cursor.style.left = e.clientX + 'px';
-});
-</script>
+    <style>
+        body {
+            background: linear-gradient(to right, #1e3c72, #2a5298);
+            font-family: 'Arial', sans-serif;
+        }
+        .stApp {
+            background: linear-gradient(45deg, #1a2a6c, #b21f1f, #fdbb2d);
+            animation: gradientBG 15s ease infinite;
+            background-size: 400% 400%;
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .stTextInput, .stSelectbox, .stButton>button {
+            border-radius: 10px !important;
+            font-size: 18px;
+        }
+        .title {
+            font-size: 42px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 8px rgba(255,255,255,0.5);
+            text-align: center;
+        }
+        .glow-cursor {
+            position: fixed;
+            width: 15px;
+            height: 15px;
+            background: radial-gradient(circle, #ff0, #f00);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            animation: sparkle 1.5s infinite;
+        }
+        @keyframes sparkle {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+    <div class="glow-cursor" id="glowCursor"></div>
+    <script>
+        document.addEventListener("mousemove", function(event) {
+            var cursor = document.getElementById("glowCursor");
+            cursor.style.left = event.clientX + "px";
+            cursor.style.top = event.clientY + "px";
+        });
+    </script>
 """, unsafe_allow_html=True)
 
-st.title("✨🚀 Mas-AI Multilingual Player 🚀✨")
-
-video_url = st.text_input("🔗 Paste YouTube video URL:", "")
-
-# Language selection with flags (popular languages)
-languages = {
-    'en': ('English', '🇺🇸'),
-    'es': ('Spanish', '🇪🇸'),
-    'fr': ('French', '🇫🇷'),
-    'de': ('German', '🇩🇪'),
-    'zh-CN': ('Chinese', '🇨🇳'),
-    'ja': ('Japanese', '🇯🇵'),
-    'ko': ('Korean', '🇰🇷'),
-    'it': ('Italian', '🇮🇹'),
-    'ru': ('Russian', '🇷🇺'),
-    'fa': ('Persian', '🇮🇷'),
-    # Add more as needed
+# 🌍 Language Options with Flags
+LANGUAGES = {
+    "en": "🇬🇧 English",
+    "es": "🇪🇸 Spanish",
+    "fr": "🇫🇷 French",
+    "de": "🇩🇪 German",
+    "zh-cn": "🇨🇳 Chinese",
+    "ar": "🇸🇦 Arabic",
+    "ru": "🇷🇺 Russian",
+    "hi": "🇮🇳 Hindi",
+    "ja": "🇯🇵 Japanese",
+    "ko": "🇰🇷 Korean",
+    "it": "🇮🇹 Italian",
+    "pt": "🇵🇹 Portuguese",
 }
 
-lang_labels = [f"{flag} {name}" for code, (name, flag) in languages.items()]
-selected_lang = st.selectbox("🎧 Select audio/subtitle language:", lang_labels)
-lang_code = list(languages.keys())[lang_labels.index(selected_lang)]
+# 🌟 Title
+st.markdown("<div class='title'>🌍 Mas-AI Multilingual Video Platform 🚀</div>", unsafe_allow_html=True)
 
-if st.button("✨ Generate Multilingual Video ✨"):
-    with st.spinner("Generating your multilingual AI video..."):
-        try:
-            yt = YouTube(video_url)
-            stream = yt.streams.get_highest_resolution()
+# 📌 Input: Video URL
+video_url = st.text_input("🔗 Paste YouTube video URL here:", "")
 
-            # Download video
-            temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-            stream.download(output_path=os.path.dirname(temp_video.name), filename=os.path.basename(temp_video.name))
+# 📌 Language Selection
+col1, col2 = st.columns(2)
+with col1:
+    subtitle_lang = st.selectbox("📖 Subtitle Language", list(LANGUAGES.keys()), format_func=lambda x: LANGUAGES[x])
+with col2:
+    audio_lang = st.selectbox("🎧 Audio Language", list(LANGUAGES.keys()), format_func=lambda x: LANGUAGES[x])
 
-            # Generate translated audio
-            tts = gTTS(text=yt.title, lang=lang_code)
-            temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
-            tts.save(temp_audio.name)
+if video_url:
+    try:
+        yt = YouTube(video_url)
+        stream = yt.streams.get_highest_resolution()
+        video_path = stream.download(output_path=tempfile.gettempdir())
 
-            # Merge audio & video
-            video_clip = VideoFileClip(temp_video.name)
-            audio_clip = AudioFileClip(temp_audio.name)
-            video_clip = video_clip.set_audio(audio_clip)
-            final_video_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-            video_clip.write_videofile(final_video_path, codec='libx264')
+        st.video(video_path)
+        st.success(f"🎬 Playing: **{yt.title}**")
 
-            # Display video
-            with open(final_video_path, "rb") as video_file:
-                video_bytes = video_file.read()
-                st.video(video_bytes)
+        # 🎤 Generate AI Audio Translation (Example using gTTS)
+        text = f"This video is being translated into {LANGUAGES[audio_lang]}"
+        tts = gTTS(text=text, lang=audio_lang)
+        audio_path = os.path.join(tempfile.gettempdir(), "translated_audio.mp3")
+        tts.save(audio_path)
 
-            # Clean up temporary files
-            os.unlink(temp_video.name)
-            os.unlink(temp_audio.name)
-            os.unlink(final_video_path)
+        st.audio(audio_path, format="audio/mp3")
 
-        except Exception as e:
-            st.error(f"Error: {e}")
+        # 🌍 Display Selected Languages & Flags
+        st.markdown(f"🎭 **Audio:** {LANGUAGES[audio_lang]} | 📖 **Subtitles:** {LANGUAGES[subtitle_lang]}")
 
-st.markdown("---")
-st.markdown("Powered by Mas-AI Consulting 🚀")
+    except Exception as e:
+        st.error(f"⚠️ Error: {e}")
 
+# 🚀 Footer
+st.markdown("<div style='text-align: center; color: white; font-size: 18px;'>🔗 Powered by Mas-AI Consulting 🌍</div>", unsafe_allow_html=True)
