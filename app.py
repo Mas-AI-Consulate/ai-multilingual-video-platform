@@ -1,70 +1,39 @@
 import streamlit as st
-from pytube import YouTube
-from moviepy.editor import VideoFileClip
-from gtts import gTTS
-import tempfile
 import os
-import base64
+import subprocess
+from pytube import YouTube
+import tempfile
+from gtts import gTTS
 
-# Set page config for a fancy UI
+# Set page config
 st.set_page_config(
-    page_title="Mas-AI Multilingual Player 🌍",
-    page_icon="🌟",
+    page_title="Mas-AI Multilingual Video Platform",
+    page_icon="🌍",
     layout="wide"
 )
 
-# 🎨 Custom CSS for fancy UI
+# 🌟 Custom Styling for Fancy UI
 st.markdown("""
     <style>
         body {
             background: linear-gradient(to right, #1e3c72, #2a5298);
-            font-family: 'Arial', sans-serif;
-        }
-        .stApp {
-            background: linear-gradient(45deg, #1a2a6c, #b21f1f, #fdbb2d);
-            animation: gradientBG 15s ease infinite;
-            background-size: 400% 400%;
-        }
-        @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-        .stTextInput, .stSelectbox, .stButton>button {
-            border-radius: 10px !important;
-            font-size: 18px;
         }
         .title {
             font-size: 42px;
             font-weight: bold;
             color: white;
-            text-shadow: 2px 2px 8px rgba(255,255,255,0.5);
             text-align: center;
+            text-shadow: 2px 2px 8px rgba(255,255,255,0.8);
         }
-        .glow-cursor {
-            position: fixed;
-            width: 15px;
-            height: 15px;
-            background: radial-gradient(circle, #ff0, #f00);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 9999;
+        .sparkling {
             animation: sparkle 1.5s infinite;
         }
         @keyframes sparkle {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.5); opacity: 0.5; }
-            100% { transform: scale(1); opacity: 1; }
+            0% { filter: brightness(100%); }
+            50% { filter: brightness(200%); }
+            100% { filter: brightness(100%); }
         }
     </style>
-    <div class="glow-cursor" id="glowCursor"></div>
-    <script>
-        document.addEventListener("mousemove", function(event) {
-            var cursor = document.getElementById("glowCursor");
-            cursor.style.left = event.clientX + "px";
-            cursor.style.top = event.clientY + "px";
-        });
-    </script>
 """, unsafe_allow_html=True)
 
 # 🌍 Language Options with Flags
@@ -98,23 +67,26 @@ with col2:
 
 if video_url:
     try:
+        # Download Video
         yt = YouTube(video_url)
-        stream = yt.streams.get_highest_resolution()
+        stream = yt.streams.filter(progressive=True, file_extension="mp4").order_by("resolution").desc().first()
         video_path = stream.download(output_path=tempfile.gettempdir())
 
+        # Extract Audio Using FFmpeg
+        audio_path = os.path.join(tempfile.gettempdir(), "audio.mp3")
+        subprocess.run(["ffmpeg", "-i", video_path, "-q:a", "0", "-map", "a", audio_path], check=True)
+
+        # AI Translate Audio
+        tts = gTTS(f"Now playing in {LANGUAGES[audio_lang]}", lang=audio_lang)
+        tts_path = os.path.join(tempfile.gettempdir(), "tts_audio.mp3")
+        tts.save(tts_path)
+
+        # Show Video
         st.video(video_path)
         st.success(f"🎬 Playing: **{yt.title}**")
 
-        # 🎤 Generate AI Audio Translation (Example using gTTS)
-        text = f"This video is being translated into {LANGUAGES[audio_lang]}"
-        tts = gTTS(text=text, lang=audio_lang)
-        audio_path = os.path.join(tempfile.gettempdir(), "translated_audio.mp3")
-        tts.save(audio_path)
-
-        st.audio(audio_path, format="audio/mp3")
-
-        # 🌍 Display Selected Languages & Flags
-        st.markdown(f"🎭 **Audio:** {LANGUAGES[audio_lang]} | 📖 **Subtitles:** {LANGUAGES[subtitle_lang]}")
+        # Play AI-generated Audio
+        st.audio(tts_path, format="audio/mp3")
 
     except Exception as e:
         st.error(f"⚠️ Error: {e}")
