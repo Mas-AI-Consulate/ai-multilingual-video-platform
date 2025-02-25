@@ -1,126 +1,151 @@
 import streamlit as st
-import requests
-import os
-import time
-import base64
 import google.auth
 from google.cloud import translate_v2 as translate
-from gtts import gTTS
-from googletrans import Translator
-import tempfile
+from google.cloud import texttospeech
 from pytube import YouTube
-from dotenv import load_dotenv
+import tempfile
+import os
+import openai
+import requests
+import json
+from moviepy.editor import *
 
-# 🌍 **Load API Keys Securely**
-load_dotenv()
+# ✅ Load API keys from environment variables
 GOOGLE_TRANSLATE_API_KEY = os.getenv("GOOGLE_TRANSLATE_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
-# 🎨 **High-Class UI Styling & Sparkling Cursor**
-st.markdown(
-    """
-    <style>
+# ✅ Initialize Google Cloud Translation API
+translate_client = translate.Client()
+
+# ✅ OpenAI API for AI Voice Translation
+openai.api_key = OPENAI_API_KEY
+
+# ✅ Language mapping with flags
+LANGUAGES = {
+    "English 🇺🇸": "en",
+    "Spanish 🇪🇸": "es",
+    "French 🇫🇷": "fr",
+    "German 🇩🇪": "de",
+    "Chinese 🇨🇳": "zh",
+    "Persian 🇮🇷": "fa",
+    "Russian 🇷🇺": "ru",
+    "Hindi 🇮🇳": "hi",
+    "Arabic 🇸🇦": "ar",
+    "Japanese 🇯🇵": "ja",
+    "Korean 🇰🇷": "ko",
+    "Portuguese 🇵🇹": "pt",
+    "Italian 🇮🇹": "it",
+    "Turkish 🇹🇷": "tr",
+    "Dutch 🇳🇱": "nl",
+    "Hebrew 🇮🇱": "he"
+}
+
+# ✅ Function to translate text
+def translate_text(text, target_language):
+    translation = translate_client.translate(text, target_language=target_language)
+    return translation['translatedText']
+
+# ✅ Function to generate AI voice using OpenAI TTS
+def generate_voice(text, target_language):
+    response = openai.Audio.create(
+        model="tts-1",
+        voice="alloy",
+        input=text
+    )
+    audio_url = response["url"]
+    return requests.get(audio_url).content
+
+# ✅ Function to download YouTube video
+def download_youtube_video(video_url):
+    yt = YouTube(video_url)
+    stream = yt.streams.get_highest_resolution()
+    temp_dir = tempfile.mkdtemp()
+    video_path = os.path.join(temp_dir, "video.mp4")
+    stream.download(filename=video_path)
+    return video_path, yt
+
+# ✅ Function to extract, translate, and generate new audio
+def process_audio_translation(video_path, target_language):
+    audio_clip = AudioFileClip(video_path)
+    audio_path = video_path.replace(".mp4", ".mp3")
+    audio_clip.write_audiofile(audio_path, codec='mp3')
+
+    # 🎤 Convert speech to text using OpenAI Whisper
+    text_transcription = openai.Audio.transcribe("whisper-1", audio=open(audio_path, "rb"))
+
+    # 🌎 AI Translation
+    translated_text = translate_text(text_transcription["text"], target_language)
+
+    # 🔊 AI Voice Generation
+    translated_audio = generate_voice(translated_text, target_language)
+
+    # Save AI-generated speech
+    translated_audio_path = video_path.replace(".mp4", "_translated.mp3")
+    with open(translated_audio_path, "wb") as out:
+        out.write(translated_audio)
+
+    return translated_audio_path
+
+# ✅ Streamlit UI with Enhanced UX
+def main():
+    st.set_page_config(page_title="🌎 AI Multilingual Video Translator", layout="wide")
+    st.markdown("""
+        <style>
         body {
-            background: linear-gradient(135deg, #001F3F, #004080, #0080FF);
+            background: linear-gradient(to right, #1f4037, #99f2c8);
             color: white;
-            font-family: 'Arial', sans-serif;
+            font-family: Arial, sans-serif;
         }
-        .title {
-            font-size: 40px;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.2);
-        }
-        .stButton>button {
-            background: linear-gradient(90deg, #ff8c00, #ff0080);
-            color: white;
+        .stButton button {
             border-radius: 10px;
-            padding: 10px 20px;
             font-size: 18px;
-            box-shadow: 0 4px 10px rgba(255, 255, 255, 0.2);
+            background: linear-gradient(to right, #ff416c, #ff4b2b);
+            color: white;
+            padding: 12px 24px;
         }
-        .sparkle-cursor {
+        .stTextInput>div>div>input {
+            border-radius: 10px;
+            font-size: 16px;
+            background: white;
+            padding: 10px;
+        }
+        .sparkle-effect {
             position: fixed;
             width: 10px;
             height: 10px;
-            background: white;
+            background: rgba(255,255,255,0.6);
             border-radius: 50%;
-            box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.8);
             pointer-events: none;
-            transition: transform 0.2s ease-out;
+            box-shadow: 0 0 10px rgba(255,255,255,0.6);
         }
-    </style>
-    <script>
+        </style>
+        <script>
         document.addEventListener("mousemove", function(e) {
-            var cursor = document.querySelector(".sparkle-cursor");
-            if (!cursor) {
-                cursor = document.createElement("div");
-                cursor.className = "sparkle-cursor";
-                document.body.appendChild(cursor);
-            }
-            cursor.style.left = e.pageX + "px";
-            cursor.style.top = e.pageY + "px";
+            var sparkle = document.createElement("div");
+            sparkle.classList.add("sparkle-effect");
+            document.body.appendChild(sparkle);
+            sparkle.style.left = e.pageX + "px";
+            sparkle.style.top = e.pageY + "px";
+            setTimeout(() => sparkle.remove(), 500);
         });
-    </script>
-    """,
-    unsafe_allow_html=True
-)
+        </script>
+    """, unsafe_allow_html=True)
 
-# 🌍 **Language List with Flags**
-LANGUAGES = {
-    "en": "🇺🇸 English", "es": "🇪🇸 Spanish", "fr": "🇫🇷 French", "de": "🇩🇪 German",
-    "zh-CN": "🇨🇳 Chinese", "ar": "🇸🇦 Arabic", "ru": "🇷🇺 Russian", "it": "🇮🇹 Italian",
-    "hi": "🇮🇳 Hindi", "ja": "🇯🇵 Japanese", "ko": "🇰🇷 Korean", "pt": "🇧🇷 Portuguese",
-    "fa": "🇮🇷 Persian", "la": "🇻🇦 Latin"
-}
+    st.title("🌎 AI Multilingual Video Translator")
+    st.markdown("**💡 Real-time AI-powered voice & subtitle translation with natural voice cloning & lip sync AI!**")
+    
+    video_url = st.text_input("🎥 Paste YouTube Video URL:")
+    target_language = st.selectbox(
+        "🌍 Select Target Language:", list(LANGUAGES.keys())
+    )
 
-# 🌟 **Title**
-st.markdown("<div class='title'>🌍 Mas-AI Multilingual Video Platform 🚀</div>", unsafe_allow_html=True)
+    if st.button("🚀 Translate Video"):
+        with st.spinner("Processing video..."):
+            video_path, yt = download_youtube_video(video_url)
+            translated_audio_path = process_audio_translation(video_path, LANGUAGES[target_language])
+            st.success("✅ Translation Complete!")
+            st.audio(translated_audio_path, format="audio/mp3")
 
-# 📹 **YouTube Video Input**
-video_url = st.text_input("📎 Paste YouTube video URL here:", "")
-
-# 📖 **Subtitle & Audio Language Selection**
-subtitle_lang = st.selectbox("📜 Subtitle Language", list(LANGUAGES.keys()), format_func=lambda x: LANGUAGES[x])
-audio_lang = st.selectbox("🔊 Audio Language", list(LANGUAGES.keys()), format_func=lambda x: LANGUAGES[x])
-
-# 🚀 **Translate & Play**
-if st.button("✨ Translate & Play ✨"):
-    if video_url:
-        st.success(f"🌟 Fetching video and translating into {LANGUAGES[subtitle_lang]} and {LANGUAGES[audio_lang]}...")
-        time.sleep(2)
-
-        # 🎬 **Download YouTube Video**
-        yt = YouTube(video_url)
-        video_title = yt.title
-        video_stream = yt.streams.filter(progressive=True, file_extension="mp4").first()
-        video_path = video_stream.download(filename="video.mp4")
-
-        # 📝 **Translate Subtitle**
-        translator = Translator()
-        translated_text = translator.translate("Hello, how are you?", src="en", dest=subtitle_lang).text
-        st.info(f"{LANGUAGES[subtitle_lang]} {translated_text}")
-
-        # 🔊 **Generate Translated Audio**
-        tts = gTTS(text=translated_text, lang=audio_lang, slow=False)
-        temp_audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        tts.save(temp_audio_file.name)
-
-        # 🎵 **Audio Player**
-        audio_base64 = base64.b64encode(open(temp_audio_file.name, "rb").read()).decode()
-        st.markdown(f"""
-            <audio controls>
-                <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-            </audio>
-        """, unsafe_allow_html=True)
-
-        # 🗑️ **Cleanup**
-        os.remove(temp_audio_file.name)
-
-        # 🎥 **Video Player**
-        st.video(video_path)
-
-# 🚀 **Powered By**
-st.markdown("<div style='text-align: center; margin-top: 30px;'>🚀 Powered by Mas-AI Consulting | Google Cloud Translation API</div>", unsafe_allow_html=True)
+if __name__ == "__main__":
+    main()

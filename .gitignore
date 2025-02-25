@@ -14,4 +14,3 @@ mas_ai_env/
 # Ignore compiled files
 *.log
 *.sqlite3
-*.db

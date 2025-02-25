@@ -1,5 +1,10 @@
-runtime: python39
-entrypoint: gunicorn -b :$PORT app:app
+runtime: python39  # Use the latest Python runtime
+entrypoint: streamlit run app.py
+
 env_variables:
-    GOOGLE_TRANSLATE_API_KEY: "REDACTED"
-    OPENAI_API_KEY: "REDACTED"
+  GOOGLE_TRANSLATE_API_KEY: "your-secured-google-api-key"
+  YOUTUBE_API_KEY: "your-secured-youtube-api-key"
+
+handlers:
+  - url: /.*
+    script: auto
