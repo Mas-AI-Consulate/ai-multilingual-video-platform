@@ -1,12 +1,17 @@
-# Ignore environment variables and API keys
+# Ignore environment files
 .env
+.streamlit/secrets.toml
 
-# Ignore Python cache and virtual environments
+# Ignore unnecessary system files
 __pycache__/
 *.pyc
-.venv/
+*.pyo
+
+# Ignore virtual environment
+venv/
 mas_ai_env/
 
-# Ignore system files
-.DS_Store
-Thumbs.db
+# Ignore compiled files
+*.log
+*.sqlite3
+*.db
