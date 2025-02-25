@@ -1,0 +1,12 @@
+# Ignore environment variables and API keys
+.env
+
+# Ignore Python cache and virtual environments
+__pycache__/
+*.pyc
+.venv/
+mas_ai_env/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
